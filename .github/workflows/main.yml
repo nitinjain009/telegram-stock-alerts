@@ -1,10 +1,12 @@
-#main.yml
-name: Send Telegram Test Message
+name: Trigger Python Scripts On Schedule (IST) and Off-Hours Message
 
-on: [push]
+on:
+  schedule:
+    - cron: '30 16-22,0-10 * * 1-5' # Runs every day (Monday-Friday) during IST 9:30 PM to 3:30 PM
+  workflow_dispatch:
 
 jobs:
-  send_telegram:
+  trigger_scripts_and_off_hours:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -13,9 +15,82 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.x' # Or your desired Python version
 
-      - name: Install Dependencies
+      - name: Install Dependencies (if any)
         run: |
           python -m pip install --upgrade pip
-          pip install python-telegram-bot requests  # Install both libraries
+          # Add any specific dependencies your Python scripts need here
+          # For example:
+          # pip install requests yfinance beautifulsoup4
+
+      - name: Check Current Time (IST)
+        id: check_time
+        run: |
+          import datetime
+          import pytz
+
+          ist = pytz.timezone('Asia/Kolkata')
+          now_ist = datetime.datetime.now(ist)
+          current_hour = now_ist.hour
+          current_minute = now_ist.minute
+          current_weekday = now_ist.weekday() # Monday is 0, Sunday is 6
+
+          is_within_hours = False
+
+          # Check for Monday to Friday
+          if 0 <= current_weekday <= 4:
+              # Check between 9:30 PM and 11:59 PM IST
+              if current_hour == 21 and current_minute >= 30:
+                  is_within_hours = True
+              elif 22 <= current_hour <= 23:
+                  is_within_hours = True
+              # Check between 12:00 AM and 3:30 AM IST
+              elif 0 <= current_hour <= 2:
+                  is_within_hours = True
+              elif current_hour == 3 and current_minute <= 30:
+                  is_within_hours = True
+
+          print(f"Current IST Time: {now_ist.strftime('%Y-%m-%d %H:%M:%S')}")
+          print(f"Is within working hours (IST 9:30 PM to 3:30 PM)? {is_within_hours}")
+          echo "is_within_hours=$is_within_hours" >> $GITHUB_OUTPUT
+
+      - name: Find and Execute Python Scripts (During Working Hours)
+        if: steps.check_time.outputs.is_within_hours == 'true'
+        run: |
+          find . -name "*.py" -type f -not -name "__init__.py" -exec python3 {} \;
+
+      - name: Send Off-Hours Message (Outside Working Hours)
+        if: steps.check_time.outputs.is_within_hours == 'false' && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -c '''
+import os
+from telegram import Bot
+import asyncio
+from telegram.error import TelegramError
+
+async def send_message(token, chat_id, message):
+    bot = Bot(token=token)
+    try:
+        await bot.send_message(chat_id=chat_id, text=message)
+        print("Off-hours message sent successfully.")
+    except TelegramError as e:
+        print(f"Error sending Telegram message: {e}")
+
+async def main():
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    off_hours_message = "Off Hours"
+
+    if not bot_token or not chat_id:
+        print("Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID environment variables not set.")
+        return
+
+    await send_message(bot_token, chat_id, off_hours_message)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+'''
