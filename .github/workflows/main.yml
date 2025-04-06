@@ -20,40 +20,40 @@ jobs:
       - name: Install Dependencies (if any)
         run: |
           python -m pip install --upgrade pip
-          # Add any specific dependencies your Python scripts need here
-          # For example:
-          # pip install requests yfinance beautifulsoup4
+          pip install python-telegram-bot requests pytz  # Install required libraries
 
       - name: Check Current Time (IST)
         id: check_time
         run: |
           import datetime
           import pytz
+          import os
 
-          ist = pytz.timezone('Asia/Kolkata')
-          now_ist = datetime.datetime.now(ist)
+          ist_timezone = pytz.timezone('Asia/Kolkata')
+          now_ist = datetime.datetime.now(ist_timezone)
           current_hour = now_ist.hour
           current_minute = now_ist.minute
           current_weekday = now_ist.weekday() # Monday is 0, Sunday is 6
 
           is_within_hours = False
 
-          # Check for Monday to Friday
+          # Check for Monday to Friday (0-4)
           if 0 <= current_weekday <= 4:
-              # Check between 9:30 PM and 11:59 PM IST
+              # Check between 21:30 and 23:59 IST
               if current_hour == 21 and current_minute >= 30:
                   is_within_hours = True
               elif 22 <= current_hour <= 23:
                   is_within_hours = True
-              # Check between 12:00 AM and 3:30 AM IST
+              # Check between 00:00 and 03:30 IST
               elif 0 <= current_hour <= 2:
                   is_within_hours = True
               elif current_hour == 3 and current_minute <= 30:
                   is_within_hours = True
 
-          print(f"Current IST Time: {now_ist.strftime('%Y-%m-%d %H:%M:%S')}")
-          print(f"Is within working hours (IST 9:30 PM to 3:30 PM)? {is_within_hours}")
-          echo "is_within_hours=$is_within_hours" >> $GITHUB_OUTPUT
+          print(f"Current IST Time: {now_ist.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+          print(f"Is within working hours (IST 21:30 to 03:30)? {is_within_hours}")
+          os.environ['IS_WITHIN_HOURS'] = str(is_within_hours).lower()
+          echo "is_within_hours=${{ env.IS_WITHIN_HOURS }}" >> $GITHUB_OUTPUT
 
       - name: Find and Execute Python Scripts (During Working Hours)
         if: steps.check_time.outputs.is_within_hours == 'true'
