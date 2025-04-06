@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '30 16-22,0-10 * * 1-5' # Runs every day (Monday-Friday) during IST 9:30 PM to 3:30 PM
   workflow_dispatch:
-
+#
 jobs:
   trigger_scripts_and_off_hours:
     runs-on: ubuntu-latest
