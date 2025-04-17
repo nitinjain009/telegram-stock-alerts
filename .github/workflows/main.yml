@@ -1,3 +1,4 @@
+#
 name: Trigger Python Scripts On Schedule (IST) and Off-Hours Message
 
 on:
